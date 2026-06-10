@@ -14,11 +14,12 @@
   body { background: var(--bg); color: var(--text); font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif; font-size: 14px; }
   header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
   header h1 { font-size: 16px; font-weight: 600; }
+  #rt-status { font-size: 12px; color: var(--muted); }
   #last-updated { margin-left: auto; color: var(--muted); font-size: 12px; }
   #refresh-btn { background: var(--badge); border: 1px solid var(--border); color: var(--text); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
   #refresh-btn:hover { background: var(--accent); border-color: var(--accent); }
 
-  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 20px; background: var(--surface); }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; background: var(--surface); }
   .tab { padding: 10px 18px; cursor: pointer; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .tab:hover:not(.active) { color: var(--text); }
@@ -29,7 +30,7 @@
   .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
   .investor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
   .investor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-  .investor-card-head { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
+  .investor-card-head { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; display: flex; align-items: center; }
   .investor-card table { width: 100%; border-collapse: collapse; }
   .investor-card td { padding: 7px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
   .investor-card tr:last-child td { border-bottom: none; }
@@ -41,7 +42,7 @@
   .entries-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 12px; font-weight: 500; border-bottom: 1px solid var(--border); }
   .entries-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
   .entries-table tr:last-child td { border-bottom: none; }
-  .entries-table tr:hover td { background: var(--surface); }
+  .entries-table tbody tr:hover td { background: rgba(79,142,247,.05); }
 
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge-in  { background: rgba(52,211,153,.15); color: var(--up); }
@@ -50,7 +51,6 @@
   .down { color: var(--down); }
   .muted { color: var(--muted); }
 
-  .analysis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
   .period-selector { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
   .period-selector select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
   .period-selector label { color: var(--muted); font-size: 12px; }
@@ -63,30 +63,61 @@
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading { color: var(--muted); padding: 40px; text-align: center; }
+
+  /* 차트 토글 */
+  .card-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-left: auto; }
+  .card-view-btn { padding: 3px 10px; font-size: 11px; background: none; border: none; color: var(--muted); cursor: pointer; }
+  .card-view-btn.active { background: var(--accent); color: #fff; }
+  .card-view-btn:hover:not(.active) { background: var(--badge); color: var(--text); }
+  .card-chart-view { padding: 14px; }
+
+  /* 클릭 가능한 종목 */
+  .stock-link { cursor: pointer; }
+  .stock-link:hover b, .stock-link:hover { color: var(--accent); }
+
+  /* 모달 */
+  #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 100; align-items: center; justify-content: center; }
+  #modal-overlay.open { display: flex; }
+  #modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: min(740px,95vw); max-height: 82vh; overflow-y: auto; position: relative; }
+  #modal-close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+  #modal-close:hover { color: var(--text); }
+  #modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; padding-right: 30px; }
+  .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat-box { background: var(--badge); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
+  .stat-box .label { font-size: 11px; color: var(--muted); }
+  .stat-box .value { font-size: 16px; font-weight: 600; margin-top: 3px; }
 </style>
 </head>
 <body>
 
+<div id="modal-overlay">
+  <div id="modal">
+    <button id="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-title"></div>
+    <div id="modal-stats" class="stat-row"></div>
+    <div id="modal-history"></div>
+  </div>
+</div>
+
 <header>
   <span>📊</span>
   <h1>수급 대시보드</h1>
+  <span id="rt-status"></span>
   <span id="last-updated" class="muted">—</span>
   <button id="refresh-btn" onclick="loadAll()">새로고침</button>
 </header>
 
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('realtime', this)">📡 실시간 현황</div>
-  <div class="tab" onclick="switchTab('daily', this)">📊 투자자 TOP10</div>
-  <div class="tab" onclick="switchTab('analysis', this)">📈 분석 결과</div>
+  <div class="tab active" onclick="switchTab('realtime',this)">📡 실시간 현황</div>
+  <div class="tab" onclick="switchTab('daily',this)">📊 투자자 TOP10</div>
+  <div class="tab" onclick="switchTab('analysis',this)">📈 분석 결과</div>
 </div>
 
-<!-- ── 실시간 현황 ── -->
 <div id="panel-realtime" class="panel active">
   <p class="section-title" id="rt-title">오늘 편입/이탈 현황</p>
   <div id="rt-table"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
 </div>
 
-<!-- ── 투자자 TOP10 ── -->
 <div id="panel-daily" class="panel">
   <div class="period-selector">
     <label>날짜</label>
@@ -97,13 +128,12 @@
   </div>
 </div>
 
-<!-- ── 분석 결과 ── -->
 <div id="panel-analysis" class="panel">
   <div class="period-selector">
     <label>기간</label>
     <select id="analysis-period-sel" onchange="onPeriodChange()"></select>
     <label style="margin-left:12px">유형</label>
-    <select id="analysis-type-sel" onchange="renderAnalysis()">
+    <select id="analysis-type-sel" onchange="onPeriodChange()">
       <option value="total">전체기간</option>
       <option value="monthly">월별</option>
     </select>
@@ -114,21 +144,15 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 // ── 설정 ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://thhoydcjdxkvtpquaqwk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Y_iy6oC680CLENegwsp0Dg_hMiaih0b";
-const REFRESH_SEC  = 30;
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── 공통 유틸 ─────────────────────────────────────────────────
-async function sb(table, params = "") {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-  });
-  if (!r.ok) throw new Error(`${r.status}`);
-  return r.json();
-}
-
+// ── 유틸 ──────────────────────────────────────────────────────
 function fmtAmount(raw) {
   if (raw == null) return "—";
   const sign = raw >= 0 ? "▲" : "▽";
@@ -146,29 +170,143 @@ function fmtAmount(raw) {
 }
 
 function today8() {
-  return new Date().toISOString().slice(0,10).replace(/-/g,"");
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  return kst.toISOString().slice(0,10).replace(/-/g,"");
 }
 
 function setUpdated() {
   document.getElementById("last-updated").textContent =
-    "최종갱신: " + new Date().toLocaleTimeString("ko-KR");
+    "갱신: " + new Date().toLocaleTimeString("ko-KR");
 }
 
-// ── 탭 전환 ───────────────────────────────────────────────────
-function switchTab(name, el) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-  el.classList.add("active");
-  document.getElementById("panel-" + name).classList.add("active");
+// ── 차트 ──────────────────────────────────────────────────────
+const _charts = {}, _chartData = {};
+
+function renderBarChart(canvasId, labels, amounts) {
+  if (_charts[canvasId]) { _charts[canvasId].destroy(); delete _charts[canvasId]; }
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  _charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: amounts,
+        backgroundColor: amounts.map(v => v >= 0 ? 'rgba(52,211,153,.5)' : 'rgba(248,113,113,.5)'),
+        borderColor:     amounts.map(v => v >= 0 ? '#34d399' : '#f87171'),
+        borderWidth: 1, borderRadius: 3,
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => '  ' + fmtAmount(c.raw) } }
+      },
+      scales: {
+        x: { ticks: { color:'#7c839a', font:{size:10} }, grid: { color:'#2a2d3a' } },
+        y: { ticks: { color:'#e2e8f0', font:{size:12} }, grid: { color:'rgba(0,0,0,0)' } }
+      }
+    }
+  });
 }
+
+function showCardView(cardId, view, btn) {
+  const card = document.getElementById(cardId);
+  card.querySelector('.card-table-view').style.display = view === 'table' ? '' : 'none';
+  card.querySelector('.card-chart-view').style.display = view === 'chart' ? '' : 'none';
+  card.querySelectorAll('.card-view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (view === 'chart' && _chartData[cardId]) {
+    const { labels, amounts } = _chartData[cardId];
+    renderBarChart(`chart-${cardId}`, labels, amounts);
+  }
+}
+
+// ── 종목 상세 모달 ─────────────────────────────────────────────
+async function openModal(code, name) {
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('modal-title').textContent = `${name}  (${code})`;
+  document.getElementById('modal-stats').innerHTML = '';
+  document.getElementById('modal-history').innerHTML =
+    '<div class="loading"><span class="spinner"></span>불러오는 중...</div>';
+
+  const { data, error } = await db.from('bot_entries')
+    .select('*').eq('code', code)
+    .order('date', { ascending: false })
+    .order('entry_time', { ascending: false })
+    .limit(200);
+
+  if (error || !data || !data.length) {
+    document.getElementById('modal-history').innerHTML = '<div class="empty">편입 이력 없음</div>';
+    return;
+  }
+
+  const days = new Set(data.map(r => r.date)).size;
+  const withExit = data.filter(r => r.entry_time && r.exit_time);
+  const avgDur = withExit.length
+    ? Math.round(withExit.reduce((s, r) => {
+        const [eh,em] = r.entry_time.split(':').map(Number);
+        const [xh,xm] = r.exit_time.split(':').map(Number);
+        return s + (xh*60+xm - eh*60-em);
+      }, 0) / withExit.length)
+    : null;
+
+  document.getElementById('modal-stats').innerHTML = `
+    <div class="stat-box"><div class="label">편입 발생일</div><div class="value">${days}일</div></div>
+    <div class="stat-box"><div class="label">총 편입 횟수</div><div class="value">${data.length}회</div></div>
+    ${avgDur !== null ? `<div class="stat-box"><div class="label">평균 유지시간</div><div class="value">${avgDur}분</div></div>` : ''}
+  `;
+
+  const rows = data.map(r => {
+    const dur = (r.entry_time && r.exit_time) ? (() => {
+      const [eh,em] = r.entry_time.split(':').map(Number);
+      const [xh,xm] = r.exit_time.split(':').map(Number);
+      const d = xh*60+xm - eh*60-em;
+      return d > 0 ? `${d}분` : '—';
+    })() : '—';
+    const badge = r.status === 'in'
+      ? '<span class="badge badge-in">편입</span>'
+      : '<span class="badge badge-out">이탈</span>';
+    const ds = r.date ? `${r.date.slice(0,4)}-${r.date.slice(4,6)}-${r.date.slice(6)}` : '—';
+    return `<tr>
+      <td class="muted" style="font-size:12px">${ds}</td>
+      <td>${badge}</td>
+      <td>${r.entry_time||'—'}</td>
+      <td>${r.entry_price != null ? r.entry_price.toLocaleString() : '—'}</td>
+      <td>${r.exit_time||'—'}</td>
+      <td>${r.exit_price != null ? r.exit_price.toLocaleString() : '—'}</td>
+      <td class="muted">${dur}</td>
+      <td class="muted" style="font-size:11px">${r.condition_name||''}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('modal-history').innerHTML = `
+    <table class="entries-table">
+      <thead><tr>
+        <th>날짜</th><th>상태</th><th>편입시각</th><th>편입가</th>
+        <th>이탈시각</th><th>이탈가</th><th>유지</th><th>조건식</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
 
 // ── 데이터 캐시 ───────────────────────────────────────────────
 let _entries = [], _daily = [], _analysis = [];
 
 // ── 실시간 현황 ───────────────────────────────────────────────
 async function loadRealtime() {
-  _entries = await sb("bot_entries",
-    `date=eq.${today8()}&order=updated_at.desc&limit=200`);
+  const { data } = await db.from('bot_entries')
+    .select('*').eq('date', today8())
+    .order('updated_at', { ascending: false }).limit(200);
+  _entries = data || [];
 }
 
 function renderRealtime() {
@@ -187,16 +325,19 @@ function renderRealtime() {
     const badge = e.status === "in"
       ? '<span class="badge badge-in">편입</span>'
       : '<span class="badge badge-out">이탈</span>';
-    const dur = (e.entry_time && e.exit_time)
-      ? (() => {
-          const [eh,em] = e.entry_time.split(":").map(Number);
-          const [xh,xm] = e.exit_time.split(":").map(Number);
-          const d = (xh*60+xm) - (eh*60+em);
-          return d > 0 ? `${d}분` : "—";
-        })() : "—";
+    const dur = (e.entry_time && e.exit_time) ? (() => {
+      const [eh,em] = e.entry_time.split(":").map(Number);
+      const [xh,xm] = e.exit_time.split(":").map(Number);
+      const d = (xh*60+xm) - (eh*60+em);
+      return d > 0 ? `${d}분` : "—";
+    })() : "—";
+    const sn = (e.name||e.code).replace(/'/g,"\\'");
     return `<tr>
       <td>${badge}</td>
-      <td><b>${e.name||e.code}</b><br><span class="muted" style="font-size:11px">${e.code} · ${e.condition_name||""}</span></td>
+      <td class="stock-link" onclick="openModal('${e.code}','${sn}')">
+        <b>${e.name||e.code}</b><br>
+        <span class="muted" style="font-size:11px">${e.code} · ${e.condition_name||""}</span>
+      </td>
       <td>${e.entry_time||"—"}</td>
       <td>${e.entry_price != null ? e.entry_price.toLocaleString() : "—"}</td>
       <td>${rate}</td>
@@ -215,7 +356,43 @@ function renderRealtime() {
 
 // ── 투자자 TOP10 ──────────────────────────────────────────────
 async function loadDaily() {
-  _daily = await sb("investor_daily", "order=date.desc,investor_type.asc,rank.asc&limit=500");
+  const { data } = await db.from('investor_daily')
+    .select('*')
+    .order('date', { ascending: false })
+    .order('investor_type', { ascending: true })
+    .order('rank', { ascending: true })
+    .limit(500);
+  _daily = data || [];
+}
+
+function makeInvestorCard(cardId, type, items) {
+  _chartData[cardId] = {
+    labels:  items.map(r => r.name || r.code).reverse(),
+    amounts: items.map(r => r.amount).reverse()
+  };
+  const trs = items.map(r => {
+    const themes = r.themes ? `<div class="theme-tag">[${r.themes}]</div>` : "";
+    const sn = (r.name||r.code).replace(/'/g,"\\'");
+    return `<tr>
+      <td class="rank">${r.rank}</td>
+      <td class="stock-link" onclick="openModal('${r.code}','${sn}')">
+        ${r.name||r.code}<br>
+        <span class="muted" style="font-size:11px">${r.code}</span>${themes}
+      </td>
+      <td class="amount ${r.amount >= 0 ? 'up':'down'}">${fmtAmount(r.amount)}</td>
+    </tr>`;
+  }).join("");
+  return `<div class="investor-card" id="${cardId}">
+    <div class="investor-card-head">
+      <span>${type}</span>
+      <div class="card-view-toggle">
+        <button class="card-view-btn active" onclick="showCardView('${cardId}','table',this)">표</button>
+        <button class="card-view-btn" onclick="showCardView('${cardId}','chart',this)">차트</button>
+      </div>
+    </div>
+    <div class="card-table-view"><table><tbody>${trs}</tbody></table></div>
+    <div class="card-chart-view" style="display:none"><canvas id="chart-${cardId}"></canvas></div>
+  </div>`;
 }
 
 function renderDailyDateSel() {
@@ -234,35 +411,30 @@ function renderDaily() {
     return;
   }
   const types = [...new Set(rows.map(r => r.investor_type))];
-  document.getElementById("daily-grid").innerHTML = types.map(type => {
-    const items = rows.filter(r => r.investor_type === type).slice(0, 10);
-    const trs = items.map(r => {
-      const themes = r.themes ? `<div class="theme-tag">[${r.themes}]</div>` : "";
-      return `<tr>
-        <td class="rank">${r.rank}</td>
-        <td>${r.name||r.code}<br><span class="muted" style="font-size:11px">${r.code}</span>${themes}</td>
-        <td class="amount ${r.amount >= 0 ? 'up':'down'}">${fmtAmount(r.amount)}</td>
-      </tr>`;
-    }).join("");
-    return `<div class="investor-card">
-      <div class="investor-card-head">${type}</div>
-      <table><tbody>${trs}</tbody></table>
-    </div>`;
-  }).join("");
+  document.getElementById("daily-grid").innerHTML = types.map((type, i) =>
+    makeInvestorCard(`daily-card-${i}`, type, rows.filter(r => r.investor_type === type).slice(0,10))
+  ).join("");
 }
 
 // ── 분석 결과 ─────────────────────────────────────────────────
 async function loadAnalysis() {
-  _analysis = await sb("investor_analysis",
-    "order=period_end.desc,investor_type.asc,rank.asc&limit=2000");
+  const { data } = await db.from('investor_analysis')
+    .select('*')
+    .order('period_end', { ascending: false })
+    .order('investor_type', { ascending: true })
+    .order('rank', { ascending: true })
+    .limit(2000);
+  _analysis = data || [];
 }
 
 function renderAnalysisPeriodSel() {
   const periods = [...new Map(_analysis.map(r =>
-    [`${r.period_start}_${r.period_end}`, `${r.period_start.slice(0,4)}-${r.period_start.slice(4,6)}-${r.period_start.slice(6)} ~ ${r.period_end.slice(0,4)}-${r.period_end.slice(4,6)}-${r.period_end.slice(6)}`]
+    [`${r.period_start}_${r.period_end}`,
+     `${r.period_start.slice(0,4)}-${r.period_start.slice(4,6)}-${r.period_start.slice(6)} ~ ` +
+     `${r.period_end.slice(0,4)}-${r.period_end.slice(4,6)}-${r.period_end.slice(6)}`]
   )).entries()];
-  const sel = document.getElementById("analysis-period-sel");
-  sel.innerHTML = periods.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
+  document.getElementById("analysis-period-sel").innerHTML =
+    periods.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
 }
 
 function onPeriodChange() {
@@ -291,44 +463,36 @@ function selectMonth(m, el) {
 }
 
 function renderAnalysis() {
-  const [ps, pe] = document.getElementById("analysis-period-sel").value.split("_");
-  const typeVal  = document.getElementById("analysis-type-sel").value;
-  const isMonthly = typeVal === "monthly";
+  const periodVal = document.getElementById("analysis-period-sel").value;
+  if (!periodVal) { document.getElementById("analysis-grid").innerHTML = '<div class="empty">데이터 없음</div>'; return; }
+  const [ps, pe]  = periodVal.split("_");
+  const isMonthly = document.getElementById("analysis-type-sel").value === "monthly";
 
   let rows;
   if (isMonthly) {
-    const activeMTab = document.querySelector(".month-tab.active");
-    const month = activeMTab ? activeMTab.dataset.month || activeMTab.textContent.trim() : null;
-    rows = _analysis.filter(r =>
-      r.period_start===ps && r.period_end===pe && r.is_monthly && r.month===month
-    );
+    const active = document.querySelector(".month-tab.active");
+    const month  = active ? active.textContent.trim() : null;
+    rows = _analysis.filter(r => r.period_start===ps && r.period_end===pe && r.is_monthly && r.month===month);
   } else {
-    rows = _analysis.filter(r =>
-      r.period_start===ps && r.period_end===pe && !r.is_monthly
-    );
+    rows = _analysis.filter(r => r.period_start===ps && r.period_end===pe && !r.is_monthly);
   }
 
   if (!rows.length) {
     document.getElementById("analysis-grid").innerHTML = '<div class="empty">데이터 없음</div>';
     return;
   }
-
   const types = [...new Set(rows.map(r => r.investor_type))];
-  document.getElementById("analysis-grid").innerHTML = types.map(type => {
-    const items = rows.filter(r => r.investor_type === type);
-    const trs = items.map(r => {
-      const themes = r.themes ? `<div class="theme-tag">[${r.themes}]</div>` : "";
-      return `<tr>
-        <td class="rank">${r.rank}</td>
-        <td>${r.name||r.code}<br><span class="muted" style="font-size:11px">${r.code}</span>${themes}</td>
-        <td class="amount ${r.amount >= 0 ? 'up':'down'}">${fmtAmount(r.amount)}</td>
-      </tr>`;
-    }).join("");
-    return `<div class="investor-card">
-      <div class="investor-card-head">${type}</div>
-      <table><tbody>${trs}</tbody></table>
-    </div>`;
-  }).join("");
+  document.getElementById("analysis-grid").innerHTML = types.map((type, i) =>
+    makeInvestorCard(`analysis-card-${i}`, type, rows.filter(r => r.investor_type === type))
+  ).join("");
+}
+
+// ── 탭 전환 ───────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("panel-" + name).classList.add("active");
 }
 
 // ── 전체 로드 ─────────────────────────────────────────────────
@@ -336,10 +500,8 @@ async function loadAll() {
   try {
     await Promise.all([loadRealtime(), loadDaily(), loadAnalysis()]);
     renderRealtime();
-    renderDailyDateSel();
-    renderDaily();
-    renderAnalysisPeriodSel();
-    onPeriodChange();
+    renderDailyDateSel(); renderDaily();
+    renderAnalysisPeriodSel(); onPeriodChange();
     setUpdated();
   } catch(e) {
     console.error(e);
@@ -347,9 +509,17 @@ async function loadAll() {
   }
 }
 
-// 초기 로드 + 30초 자동 갱신
+// ── Realtime 구독 ─────────────────────────────────────────────
+db.channel('bot-entries-rt')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'bot_entries' }, () => {
+    loadRealtime().then(() => { renderRealtime(); setUpdated(); });
+  })
+  .subscribe(status => {
+    const el = document.getElementById('rt-status');
+    if (el) el.textContent = status === 'SUBSCRIBED' ? '🟢 실시간' : '';
+  });
+
 loadAll();
-setInterval(loadAll, REFRESH_SEC * 1000);
 </script>
 </body>
 </html>
