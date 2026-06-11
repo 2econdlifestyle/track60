@@ -538,16 +538,12 @@ function switchTab(name, el) {
 
 // ── 전체 로드 ─────────────────────────────────────────────────
 async function loadAll() {
-  try {
-    await Promise.all([loadRealtime(), loadProgram(), loadDaily(), loadAnalysis()]);
-    renderRealtime(); renderProgram();
-    renderDailyDateSel(); renderDaily();
-    renderAnalysisPeriodSel(); onPeriodChange();
-    setUpdated();
-  } catch(e) {
-    console.error(e);
-    document.getElementById("last-updated").textContent = "오류: "+e.message;
-  }
+  const results = await Promise.allSettled([loadRealtime(), loadProgram(), loadDaily(), loadAnalysis()]);
+  results.forEach((r,i) => { if (r.status==="rejected") console.error(["realtime","program","daily","analysis"][i], r.reason); });
+  renderRealtime(); renderProgram();
+  renderDailyDateSel(); renderDaily();
+  renderAnalysisPeriodSel(); onPeriodChange();
+  setUpdated();
 }
 
 // ── Realtime 구독 ─────────────────────────────────────────────
