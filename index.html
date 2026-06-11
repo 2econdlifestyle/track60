@@ -406,7 +406,27 @@ function openModal(code, name) {
     .order("date", { ascending: false }).order("entry_time", { ascending: false }).limit(200)
     .then(function(res) {
       var data = res.data || [];
-      if (!data.length) { document.getElementById("modal-history").innerHTML = '<div class="empty">편입 이력 없음</div>'; return; }
+      if (!data.length) {
+        var live = _active.find(function(s) { return s.code === code; });
+        if (live) {
+          var t = today8();
+          var ds = t.slice(0,4)+"-"+t.slice(4,6)+"-"+t.slice(6);
+          document.getElementById("modal-stats").innerHTML =
+            '<div class="mstat"><div class="lbl">편입 발생일</div><div class="val">1일</div></div>' +
+            '<div class="mstat"><div class="lbl">총 편입 횟수</div><div class="val">1회</div></div>';
+          document.getElementById("modal-history").innerHTML =
+            "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>날짜</th><th>상태</th><th>편입</th><th>편입가</th><th>이탈</th><th>이탈가</th><th>유지</th></tr></thead><tbody>" +
+            "<tr><td class='muted' style='font-size:12px;white-space:nowrap'>" + ds + "</td>" +
+            "<td><span class='badge badge-in'>&#9650; 편입</span></td>" +
+            "<td>" + (live.entry_time||"—") + "</td>" +
+            "<td>" + (live.entry_price!=null?live.entry_price.toLocaleString():"—") + "</td>" +
+            "<td class='muted'>—</td><td class='muted'>—</td><td class='muted'>편입 중</td></tr>" +
+            "</tbody></table></div>";
+        } else {
+          document.getElementById("modal-history").innerHTML = '<div class="empty">편입 이력 없음</div>';
+        }
+        return;
+      }
       var days = new Set(data.map(function(r) { return r.date; })).size;
       var withExit = data.filter(function(r) { return r.entry_time && r.exit_time; });
       var avgDur = null;
