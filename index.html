@@ -459,7 +459,13 @@ function loadRealtime() {
   return Promise.all([
     db.from("realtime_status").select("*").eq("date", t).order("entry_time"),
     db.from("bot_entries").select("*").eq("date", t).eq("status","out").order("exit_time",{ascending:false})
-  ]).then(function(r) { _active = r[0].data||[]; _exited = r[1].data||[]; });
+  ]).then(function(r) {
+    _active = r[0].data||[];
+    var activeKeys = new Set(_active.map(function(s) { return s.code + '|' + (s.condition_name||''); }));
+    _exited = (r[1].data||[]).filter(function(e) {
+      return !activeKeys.has(e.code + '|' + (e.condition_name||''));
+    });
+  });
 }
 
 function renderRealtime() {
