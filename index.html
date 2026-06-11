@@ -183,14 +183,6 @@ header {
 .month-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 .month-tab:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
 
-/* ── 프로그램 수급 ── */
-.prog-market { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
-.prog-box {
-  background:var(--surface2); border:1px solid var(--border);
-  border-radius:var(--radius); padding:14px 16px;
-}
-.prog-box .lbl { font-size:11px; color:var(--muted); font-weight:500; margin-bottom:6px; }
-.prog-box .pval { font-size:17px; font-weight:700; }
 
 /* ── 로딩 / 빈 상태 ── */
 .empty {
@@ -269,7 +261,6 @@ header {
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('realtime',this)">&#128225;&nbsp; 실시간 현황</div>
-  <div class="tab" onclick="switchTab('program',this)">&#129302;&nbsp; 프로그램 수급</div>
   <div class="tab" onclick="switchTab('daily',this)">&#128202;&nbsp; 투자자 TOP10</div>
   <div class="tab" onclick="switchTab('analysis',this)">&#128200;&nbsp; 분석 결과</div>
 </div>
@@ -282,11 +273,6 @@ header {
   <div id="rt-exited"></div>
 </div>
 
-<div id="panel-program" class="panel">
-  <div id="prog-market" class="prog-market"></div>
-  <div class="sec-title">종목별 순매수 상위</div>
-  <div id="prog-table"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
-</div>
 
 <div id="panel-daily" class="panel">
   <div class="period-selector">
@@ -452,7 +438,7 @@ function openModal(code, name) {
     });
 }
 
-var _active = [], _exited = [], _program = null, _daily = [], _analysis = [];
+var _active = [], _exited = [], _daily = [], _analysis = [];
 
 function loadRealtime() {
   var t = today8();
@@ -482,19 +468,13 @@ function renderRealtime() {
     var rows = _active.map(function(s) {
       var sn = (s.name||s.code).replace(/'/g,"\\'");
       var ep = s.entry_price != null ? s.entry_price.toLocaleString() : "—";
-      var cp = s.current_price != null ? s.current_price.toLocaleString() : "—";
-      var st = s.strength != null ? Number(s.strength).toFixed(1) : "—";
       return "<tr><td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
         "<b>" + (s.name||s.code) + "</b><br><span class='muted' style='font-size:11px'>" + s.code + " &nbsp;&middot;&nbsp; " + (s.condition_name||"") + "</span></td>" +
         "<td style='white-space:nowrap'>" + (s.entry_time||"—") + "</td>" +
         "<td class='dur-cell muted' data-entry='" + (s.entry_time||"") + "'>" + fmtDur(s.entry_time) + "</td>" +
-        "<td style='font-variant-numeric:tabular-nums'>" + ep + "</td>" +
-        "<td style='font-variant-numeric:tabular-nums;font-weight:600'>" + cp + "</td>" +
-        "<td>" + fmtRate(s.change_rate) + "</td>" +
-        "<td>" + fmtPnl(s.entry_price, s.current_price) + "</td>" +
-        "<td class='muted'>" + st + "</td></tr>";
+        "<td style='font-variant-numeric:tabular-nums'>" + ep + "</td></tr>";
     }).join("");
-    actEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>종목</th><th>편입시각</th><th>유지시간</th><th>편입가</th><th>현재가</th><th>등락률</th><th>수익률</th><th>강도</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    actEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>종목</th><th>편입시각</th><th>유지시간</th><th>편입가</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
   }
 
   var exitEl = document.getElementById("rt-exited");
@@ -518,38 +498,7 @@ setInterval(function() {
   document.querySelectorAll(".dur-cell").forEach(function(td) { td.textContent = fmtDur(td.dataset.entry); });
 }, 1000);
 
-function loadProgram() {
-  return db.from("program_summary").select("*").eq("date",today8())
-    .order("recorded_at",{ascending:false}).limit(1)
-    .then(function(res) { var d=res.data||[]; _program=d.length?d[0]:null; });
-}
 
-function renderProgram() {
-  if (!_program) {
-    document.getElementById("prog-market").innerHTML = "";
-    document.getElementById("prog-table").innerHTML = '<div class="empty">오늘 프로그램 수급 데이터 없음<br><span style="font-size:11px;margin-top:4px;display:block">장중 5분 간격으로 봇이 자동 갱신합니다</span></div>';
-    return;
-  }
-  var ts = new Date(_program.recorded_at).toLocaleTimeString("ko-KR");
-  var tc=(_program.total_net||0)>=0?"up":"down", ac=(_program.arb_net||0)>=0?"up":"down", nc=(_program.non_arb_net||0)>=0?"up":"down";
-  document.getElementById("prog-market").innerHTML =
-    '<div class="prog-box"><div class="lbl">전체 순매수</div><div class="pval ' + tc + '">' + fmtAmount(_program.total_net) + '</div></div>' +
-    '<div class="prog-box"><div class="lbl">차익거래</div><div class="pval ' + ac + '">' + fmtAmount(_program.arb_net) + '</div></div>' +
-    '<div class="prog-box"><div class="lbl">비차익거래</div><div class="pval ' + nc + '">' + fmtAmount(_program.non_arb_net) + '</div></div>' +
-    '<div class="prog-box"><div class="lbl">기준시각</div><div class="pval" style="font-size:14px;color:var(--muted)">' + ts + '</div></div>';
-
-  var stocks = _program.stocks || [];
-  if (!stocks.length) { document.getElementById("prog-table").innerHTML = '<div class="empty">종목 데이터 없음</div>'; return; }
-  var rows = stocks.slice(0,50).map(function(s) {
-    var sn = (s.name||s.code).replace(/'/g,"\\'");
-    return "<tr><td class='rank'>" + s.rank + "</td>" +
-      "<td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
-      (s.name||s.code) + "<br><span class='muted' style='font-size:11px'>" + s.code + " &nbsp;&middot;&nbsp; " + (s.market||"") + "</span></td>" +
-      "<td class='amount'>" + fmtNetBuy(s.net_buy) + "</td></tr>";
-  }).join("");
-  document.getElementById("prog-table").innerHTML =
-    "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>순위</th><th>종목</th><th class='amount'>순매수 (백만원)</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
-}
 
 var _charts={}, _chartData={};
 function renderBarChart(id, labels, amounts) {
@@ -668,9 +617,9 @@ function renderAnalysis() {
 }
 
 function loadAll() {
-  Promise.allSettled([loadRealtime(),loadProgram(),loadDaily(),loadAnalysis()]).then(function(results){
-    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","program","daily","analysis"][i],r.reason);});
-    renderRealtime(); renderProgram();
+  Promise.allSettled([loadRealtime(),loadDaily(),loadAnalysis()]).then(function(results){
+    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","daily","analysis"][i],r.reason);});
+    renderRealtime();
     renderDailyDateSel(); renderDaily();
     renderAnalysisPeriodSel(); onPeriodChange();
     setUpdated();
