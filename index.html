@@ -113,6 +113,8 @@ header {
   text-transform:uppercase; letter-spacing:.05em;
   background:var(--surface2); border-bottom:1px solid var(--border); text-align:left;
 }
+.th-sort { cursor:pointer; user-select:none; white-space:nowrap; transition:color .1s; }
+.th-sort:hover { color:var(--accent); }
 .tbl tbody td { padding:11px 14px; border-bottom:1px solid var(--border); font-size:13px; }
 .tbl tbody tr:last-child td { border-bottom:none; }
 .tbl tbody tr { transition:background .1s; }
@@ -156,6 +158,7 @@ header {
 }
 .badge-in { background:var(--up-bg); color:var(--up); }
 .badge-out { background:var(--down-bg); color:var(--down); }
+.badge-re { background:rgba(88,166,255,.12); color:var(--accent); }
 
 /* ── 색상 ── */
 .up { color:var(--up); }
@@ -182,7 +185,6 @@ header {
 }
 .month-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 .month-tab:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
-
 
 /* ── 로딩 / 빈 상태 ── */
 .empty {
@@ -261,6 +263,7 @@ header {
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('realtime',this)">&#128225;&nbsp; 실시간 현황</div>
+  <div class="tab" onclick="switchTab('intraday',this)">&#128225;&nbsp; 장중 투자자</div>
   <div class="tab" onclick="switchTab('daily',this)">&#128202;&nbsp; 투자자 TOP10</div>
   <div class="tab" onclick="switchTab('analysis',this)">&#128200;&nbsp; 분석 결과</div>
 </div>
@@ -273,11 +276,20 @@ header {
   <div id="rt-exited"></div>
 </div>
 
+<div id="panel-intraday" class="panel">
+  <div class="period-selector">
+    <label>기준 시각</label>
+    <select id="intraday-time-sel" onchange="_userPick.intraday=true;renderIntraday()"></select>
+    <span class="muted" style="font-size:11px">장중투자자별매매상위(잠정) [1053] &middot; 10분 간격 &middot; 수량 기준</span>
+  </div>
+  <div id="intraday-grid" class="investor-grid"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
+</div>
 
 <div id="panel-daily" class="panel">
   <div class="period-selector">
     <label>날짜</label>
-    <select id="daily-date-sel" onchange="renderDaily()"></select>
+    <select id="daily-date-sel" onchange="_userPick.daily=true;renderDaily()"></select>
+    <span class="muted" style="font-size:11px">매 영업일 18:30 갱신</span>
   </div>
   <div id="daily-grid" class="investor-grid"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
 </div>
@@ -285,7 +297,7 @@ header {
 <div id="panel-analysis" class="panel">
   <div class="period-selector">
     <label>기간</label>
-    <select id="analysis-period-sel" onchange="onPeriodChange()"></select>
+    <select id="analysis-period-sel" onchange="_userPick.period=true;onPeriodChange()"></select>
     <label style="margin-left:8px">유형</label>
     <select id="analysis-type-sel" onchange="onPeriodChange()">
       <option value="total">전체기간</option>
@@ -347,11 +359,6 @@ function fmtPnl(ep, cp) {
   var pnl = (cp - ep) / ep * 100;
   var cls = pnl >= 0 ? "up" : "down";
   return '<span class="' + cls + '">' + (pnl >= 0 ? "+" : "") + pnl.toFixed(2) + "%</span>";
-}
-function fmtNetBuy(v) {
-  if (v == null) return '<span class="muted">—</span>';
-  var cls = v >= 0 ? "up" : "down";
-  return '<span class="' + cls + '">' + (v >= 0 ? "+" : "") + v.toLocaleString() + "백만</span>";
 }
 function setUpdated() {
   document.getElementById("last-updated").textContent = new Date().toLocaleTimeString("ko-KR") + " 갱신";
@@ -430,7 +437,10 @@ function openModal(code, name) {
       var rows = data.map(function(r) {
         var dur = calcDur(r.entry_time, r.exit_time);
         var ds = r.date ? (r.date.slice(0,4)+"-"+r.date.slice(4,6)+"-"+r.date.slice(6)) : "—";
-        var badge = r.status === "in" ? '<span class="badge badge-in">&#9650; 편입</span>' : '<span class="badge badge-out">&#9660; 이탈</span>';
+        var badge = r.status === "in"
+          ? (r.exit_count > 0 ? '<span class="badge badge-re">&#128260; 재편입</span>'
+                              : '<span class="badge badge-in">&#9650; 편입</span>')
+          : '<span class="badge badge-out">&#9660; 이탈</span>';
         return "<tr><td class='muted' style='font-size:12px;white-space:nowrap'>" + ds + "</td><td>" + badge + "</td><td>" + (r.entry_time||"—") + "</td><td>" + (r.entry_price!=null?r.entry_price.toLocaleString():"—") + "</td><td>" + (r.exit_time||"—") + "</td><td>" + (r.exit_price!=null?r.exit_price.toLocaleString():"—") + "</td><td class='muted'>" + dur + "</td></tr>";
       }).join("");
       document.getElementById("modal-history").innerHTML =
@@ -438,18 +448,60 @@ function openModal(code, name) {
     });
 }
 
-var _active = [], _exited = [], _daily = [], _analysis = [];
+var _active = [], _exited = [], _intraday = [], _daily = [], _analysis = [];
+var _meta = {};   // code|condition_name → bot_entries 행 (재편입 판별용)
+var _userPick = { daily:false, intraday:false, period:false };
+var _sort = { active:{key:"entry_time",dir:1}, exited:{key:"exit_time",dir:-1} };
+
+function t2m(t) { if (!t) return null; var p=t.split(":"); return Number(p[0])*60+Number(p[1]); }
+function nowMin() { var n=new Date(); return n.getHours()*60+n.getMinutes(); }
+function sortVal(row, key, which) {
+  switch (key) {
+    case "name":       return row.name || row.code || "";
+    case "entry_time": return t2m(row.entry_time);
+    case "exit_time":  return t2m(row.exit_time);
+    case "dur":
+      if (which === "active") return row.entry_time ? nowMin()-t2m(row.entry_time) : null;
+      return (row.entry_time && row.exit_time) ? t2m(row.exit_time)-t2m(row.entry_time) : null;
+    default: return row[key];
+  }
+}
+function applySort(arr, which) {
+  var s = _sort[which];
+  if (!s.key) return arr;
+  return arr.slice().sort(function(a,b) {
+    var va = sortVal(a,s.key,which), vb = sortVal(b,s.key,which);
+    if (va==null && vb==null) return 0;
+    if (va==null) return 1;
+    if (vb==null) return -1;
+    if (typeof va === "string") return s.dir * va.localeCompare(vb,"ko");
+    return s.dir * (va-vb);
+  });
+}
+function setSort(which, key) {
+  var s = _sort[which];
+  if (s.key === key) s.dir = -s.dir; else { s.key = key; s.dir = 1; }
+  renderRealtime();
+}
+function thSort(which, key, label) {
+  var s = _sort[which];
+  var arrow = s.key===key ? (s.dir===1 ? " &#9650;" : " &#9660;") : "";
+  return "<th class='th-sort' onclick=\"setSort('"+which+"','"+key+"')\">"+label+arrow+"</th>";
+}
 
 function loadRealtime() {
   var t = today8();
   return Promise.all([
     db.from("realtime_status").select("*").eq("date", t).order("entry_time"),
-    db.from("bot_entries").select("*").eq("date", t).eq("status","out").order("exit_time",{ascending:false})
+    db.from("bot_entries").select("*").eq("date", t).limit(1000)
   ]).then(function(r) {
     _active = r[0].data||[];
+    var entries = r[1].data||[];
+    _meta = {};
+    entries.forEach(function(e) { _meta[e.code + '|' + (e.condition_name||'')] = e; });
     var activeKeys = new Set(_active.map(function(s) { return s.code + '|' + (s.condition_name||''); }));
-    _exited = (r[1].data||[]).filter(function(e) {
-      return !activeKeys.has(e.code + '|' + (e.condition_name||''));
+    _exited = entries.filter(function(e) {
+      return e.status === "out" && !activeKeys.has(e.code + '|' + (e.condition_name||''));
     });
   });
 }
@@ -465,40 +517,93 @@ function renderRealtime() {
   if (!_active.length) {
     actEl.innerHTML = '<div class="empty">현재 편입 중인 종목 없음</div>';
   } else {
-    var rows = _active.map(function(s) {
+    var rows = applySort(_active, "active").map(function(s) {
       var sn = (s.name||s.code).replace(/'/g,"\\'");
       var ep = s.entry_price != null ? s.entry_price.toLocaleString() : "—";
+      var m  = _meta[s.code + '|' + (s.condition_name||'')];
+      var reBadge = (m && m.exit_count > 0)
+        ? ' <span class="badge badge-re">&#128260; 재편입' + (m.exit_count>1 ? ' '+m.exit_count+'회' : '') + '</span>' : '';
       return "<tr><td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
-        "<b>" + (s.name||s.code) + "</b><br><span class='muted' style='font-size:11px'>" + s.code + " &nbsp;&middot;&nbsp; " + (s.condition_name||"") + "</span></td>" +
+        "<b>" + (s.name||s.code) + "</b>" + reBadge + "<br><span class='muted' style='font-size:11px'>" + s.code + " &nbsp;&middot;&nbsp; " + (s.condition_name||"") + "</span></td>" +
         "<td style='white-space:nowrap'>" + (s.entry_time||"—") + "</td>" +
         "<td class='dur-cell muted' data-entry='" + (s.entry_time||"") + "'>" + fmtDur(s.entry_time) + "</td>" +
         "<td style='font-variant-numeric:tabular-nums'>" + ep + "</td></tr>";
     }).join("");
-    actEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>종목</th><th>편입시각</th><th>유지시간</th><th>편입가</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    actEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>" +
+      thSort("active","name","종목") + thSort("active","entry_time","편입 시각") +
+      thSort("active","dur","유지 시간") + thSort("active","entry_price","편입가") +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
   }
 
   var exitEl = document.getElementById("rt-exited");
   if (!_exited.length) {
     exitEl.innerHTML = '<div class="empty">오늘 이탈 종목 없음</div>';
   } else {
-    var rows2 = _exited.map(function(e) {
+    var rows2 = applySort(_exited, "exited").map(function(e) {
       var sn = (e.name||e.code).replace(/'/g,"\\'");
       return "<tr><td class='stock-link' onclick=\"openModal('" + e.code + "','" + sn + "')\">" +
         "<b>" + (e.name||e.code) + "</b><br><span class='muted' style='font-size:11px'>" + e.code + "</span></td>" +
-        "<td class='muted'>" + (e.entry_time||"—") + " &rarr; " + (e.exit_time||"—") + "</td>" +
+        "<td style='white-space:nowrap'>" + (e.entry_time||"—") + "</td>" +
+        "<td style='white-space:nowrap'>" + (e.exit_time||"—") + "</td>" +
         "<td class='muted'>" + calcDur(e.entry_time, e.exit_time) + "</td>" +
-        "<td>" + (e.entry_price!=null?e.entry_price.toLocaleString():"—") + "</td>" +
-        "<td>" + fmtPnl(e.entry_price, e.exit_price) + "</td></tr>";
+        "<td style='font-variant-numeric:tabular-nums'>" + (e.exit_price!=null?e.exit_price.toLocaleString():"—") + "</td></tr>";
     }).join("");
-    exitEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>종목</th><th>편입 &rarr; 이탈</th><th>유지시간</th><th>편입가</th><th>수익률</th></tr></thead><tbody>" + rows2 + "</tbody></table></div>";
+    exitEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>" +
+      thSort("exited","name","종목") + thSort("exited","entry_time","편입 시각") +
+      thSort("exited","exit_time","이탈 시각") + thSort("exited","dur","유지 시간") +
+      thSort("exited","exit_price","이탈가") +
+      "</tr></thead><tbody>" + rows2 + "</tbody></table></div>";
   }
 }
 
-setInterval(function() {
-  document.querySelectorAll(".dur-cell").forEach(function(td) { td.textContent = fmtDur(td.dataset.entry); });
-}, 1000);
+function loadIntraday() {
+  return db.from("intraday_investor").select("*").eq("date", today8())
+    .order("recorded_at",{ascending:false}).limit(150)
+    .then(function(res) { _intraday = res.data||[]; });
+}
 
+function fmtQty(v) {
+  if (v == null) return '<span class="muted">—</span>';
+  var cls = v >= 0 ? "up" : "down";
+  return '<span class="' + cls + '">' + (v >= 0 ? "+" : "") + v.toLocaleString() + '</span>';
+}
 
+function renderIntradayTimeSel() {
+  var sel = document.getElementById("intraday-time-sel");
+  var prev = sel.value, times = [], seen = {};
+  _intraday.forEach(function(r) { if (!seen[r.recorded_at]) { seen[r.recorded_at]=true; times.push(r.recorded_at); } });
+  sel.innerHTML = times.map(function(t) {
+    var d = new Date(t);
+    var lbl = ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
+    return "<option value='" + t + "'>" + lbl + "</option>";
+  }).join("");
+  if (_userPick.intraday && times.indexOf(prev) >= 0) sel.value = prev;
+}
+
+function renderIntraday() {
+  var grid = document.getElementById("intraday-grid");
+  if (!_intraday.length) {
+    grid.innerHTML = '<div class="empty">오늘 장중 투자자 데이터 없음<br><span style="font-size:11px;margin-top:4px;display:block">장중(09:00~15:30) 10분 간격으로 봇이 자동 수집합니다</span></div>';
+    return;
+  }
+  var t = document.getElementById("intraday-time-sel").value;
+  var rows = _intraday.filter(function(r) { return r.recorded_at === t; });
+  var order = ["외국인","투신","연기금"];
+  rows.sort(function(a,b) { return order.indexOf(a.investor_type) - order.indexOf(b.investor_type); });
+  var icons = { "외국인":"&#127757;", "투신":"&#127974;", "연기금":"&#128309;" };
+  grid.innerHTML = rows.map(function(r) {
+    var trs = (r.stocks||[]).map(function(s) {
+      var sn = (s.name||s.code).replace(/'/g,"\\'");
+      return "<tr><td class='rank'>" + s.rank + "</td>" +
+        "<td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
+        (s.name||s.code) + "<br><span class='muted' style='font-size:11px'>" + s.code + "</span></td>" +
+        "<td class='amount'>" + fmtQty(s.net_buy) + "</td></tr>";
+    }).join("");
+    return "<div class='investor-card'><div class='investor-card-head'><span>" +
+      (icons[r.investor_type]||"") + " " + r.investor_type + " 순매수(잠정)</span></div>" +
+      "<table><tbody>" + trs + "</tbody></table></div>";
+  }).join("") || '<div class="empty">데이터 없음</div>';
+}
 
 var _charts={}, _chartData={};
 function renderBarChart(id, labels, amounts) {
@@ -549,12 +654,16 @@ function loadDaily() {
     .then(function(res){_daily=res.data||[];});
 }
 function renderDailyDateSel() {
+  var sel=document.getElementById("daily-date-sel");
+  var prev=sel.value;
   var dates=[], seen={};
   _daily.forEach(function(r){if(!seen[r.date]){seen[r.date]=true;dates.push(r.date);}});
   dates.sort().reverse();
-  document.getElementById("daily-date-sel").innerHTML=dates.map(function(d){
+  sel.innerHTML=dates.map(function(d){
     return "<option value='"+d+"'>"+d.slice(0,4)+"-"+d.slice(4,6)+"-"+d.slice(6)+"</option>";
   }).join("");
+  // 사용자가 직접 고른 경우만 선택 유지 – 새 날짜 데이터가 오면 자동으로 최신 표시
+  if(_userPick.daily && dates.indexOf(prev)>=0) sel.value=prev;
 }
 function renderDaily() {
   var date=document.getElementById("daily-date-sel").value;
@@ -572,6 +681,8 @@ function loadAnalysis() {
     .then(function(res){_analysis=res.data||[];});
 }
 function renderAnalysisPeriodSel() {
+  var sel=document.getElementById("analysis-period-sel");
+  var prev=sel.value;
   var seen={},periods=[];
   _analysis.forEach(function(r){
     var k=r.period_start+"_"+r.period_end;
@@ -580,7 +691,8 @@ function renderAnalysisPeriodSel() {
         " ~ "+r.period_end.slice(0,4)+"-"+r.period_end.slice(4,6)+"-"+r.period_end.slice(6);
       periods.push({k:k,l:lbl});}
   });
-  document.getElementById("analysis-period-sel").innerHTML=periods.map(function(p){return "<option value='"+p.k+"'>"+p.l+"</option>";}).join("");
+  sel.innerHTML=periods.map(function(p){return "<option value='"+p.k+"'>"+p.l+"</option>";}).join("");
+  if(_userPick.period && periods.some(function(p){return p.k===prev;})) sel.value=prev;
 }
 function onPeriodChange() {
   if(document.getElementById("analysis-type-sel").value==="monthly") {
@@ -617,9 +729,10 @@ function renderAnalysis() {
 }
 
 function loadAll() {
-  Promise.allSettled([loadRealtime(),loadDaily(),loadAnalysis()]).then(function(results){
-    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","daily","analysis"][i],r.reason);});
+  Promise.allSettled([loadRealtime(),loadIntraday(),loadDaily(),loadAnalysis()]).then(function(results){
+    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","intraday","daily","analysis"][i],r.reason);});
     renderRealtime();
+    renderIntradayTimeSel(); renderIntraday();
     renderDailyDateSel(); renderDaily();
     renderAnalysisPeriodSel(); onPeriodChange();
     setUpdated();
