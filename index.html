@@ -270,7 +270,7 @@ header {
 
 <div id="panel-realtime" class="panel active">
   <div id="rt-stats" class="stat-row"></div>
-  <div class="sec-title">편입 중</div>
+  <div class="sec-title">편입 중<span id="dur-note" style="text-transform:none;letter-spacing:0"></span></div>
   <div id="rt-active"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
   <div class="sec-title" style="margin-top:32px">오늘 이탈</div>
   <div id="rt-exited"></div>
@@ -331,12 +331,16 @@ function fmtAmount(raw) {
   if (chun) p.push(chun + "천만원"); else if (p.length) p[p.length-1] += "원";
   return sign + p.join(" ");
 }
+var MARKET_OPEN_MIN  = 9 * 60;        // 09:00
+var MARKET_CLOSE_MIN = 15 * 60 + 30;  // 15:30 장 마감
 function fmtDur(entryTime) {
   if (!entryTime) return "—";
   var parts = entryTime.split(":");
   var eh = Number(parts[0]), em = Number(parts[1]);
+  // 장 마감 후에는 15:30 기준으로 유지 시간 고정
   var now = new Date();
-  var diff = (now.getHours()*60 + now.getMinutes()) - (eh*60 + em);
+  var end = Math.min(now.getHours()*60 + now.getMinutes(), MARKET_CLOSE_MIN);
+  var diff = end - (eh*60 + em);
   if (diff <= 0) return "0분";
   if (diff < 60) return diff + "분";
   return Math.floor(diff/60) + "h " + (diff%60) + "m";
@@ -455,13 +459,14 @@ var _sort = { active:{key:"entry_time",dir:1}, exited:{key:"exit_time",dir:-1} }
 
 function t2m(t) { if (!t) return null; var p=t.split(":"); return Number(p[0])*60+Number(p[1]); }
 function nowMin() { var n=new Date(); return n.getHours()*60+n.getMinutes(); }
+function effNowMin() { return Math.min(nowMin(), MARKET_CLOSE_MIN); }
 function sortVal(row, key, which) {
   switch (key) {
     case "name":       return row.name || row.code || "";
     case "entry_time": return t2m(row.entry_time);
     case "exit_time":  return t2m(row.exit_time);
     case "dur":
-      if (which === "active") return row.entry_time ? nowMin()-t2m(row.entry_time) : null;
+      if (which === "active") return row.entry_time ? effNowMin()-t2m(row.entry_time) : null;
       return (row.entry_time && row.exit_time) ? t2m(row.exit_time)-t2m(row.entry_time) : null;
     default: return row[key];
   }
@@ -508,10 +513,17 @@ function loadRealtime() {
 
 function renderRealtime() {
   var total = _active.length + _exited.length;
+  var nm = nowMin(), stateLbl, stateCls;
+  if (nm < MARKET_OPEN_MIN)       { stateLbl = "장 시작 전"; stateCls = "muted"; }
+  else if (nm >= MARKET_CLOSE_MIN){ stateLbl = "장 종료";    stateCls = "down"; }
+  else                            { stateLbl = "장중";       stateCls = "up"; }
   document.getElementById("rt-stats").innerHTML =
+    '<div class="stat-box ' + (stateCls==="up"?"up-card":stateCls==="down"?"down-card":"") + '"><div class="lbl">장 상태</div><div class="val ' + stateCls + '" style="font-size:18px;line-height:22px">' + stateLbl + '</div></div>' +
     '<div class="stat-box up-card"><div class="lbl">편입 중</div><div class="val up">' + _active.length + '</div></div>' +
     '<div class="stat-box down-card"><div class="lbl">오늘 이탈</div><div class="val down">' + _exited.length + '</div></div>' +
     '<div class="stat-box"><div class="lbl">총 포착</div><div class="val">' + total + '</div></div>';
+  document.getElementById("dur-note").textContent =
+    nm >= MARKET_CLOSE_MIN ? "유지 시간 15:30 마감 기준" : "";
 
   var actEl = document.getElementById("rt-active");
   if (!_active.length) {
