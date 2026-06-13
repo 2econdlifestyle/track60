@@ -664,8 +664,14 @@ function makeInvestorCard(cid, type, items) {
     "<div class='card-chart-view' style='display:none'><canvas id='chart-"+cid+"'></canvas></div></div>";
 }
 
+function daysAgo8(n) {
+  var kst = new Date(Date.now() + 9*3600*1000 - n*86400*1000);
+  return kst.toISOString().slice(0,10).replace(/-/g,"");
+}
 function loadDaily() {
-  return db.from("investor_daily").select("*").order("date",{ascending:false}).order("investor_type").order("rank").limit(500)
+  // 최근 30일치만 조회 (하루 30행 → 행 수 무관하게 날짜 기준으로 보장)
+  return db.from("investor_daily").select("*").gte("date", daysAgo8(30))
+    .order("date",{ascending:false}).order("investor_type").order("rank").limit(2000)
     .then(function(res){_daily=res.data||[];});
 }
 function renderDailyDateSel() {
