@@ -290,6 +290,10 @@ header {
   <div class="period-selector">
     <label>날짜</label>
     <select id="daily-date-sel" onchange="_userPick.daily=true;renderDaily()"></select>
+    <div class="card-view-toggle" style="margin-left:8px">
+      <button id="daily-buy-btn" class="card-view-btn active" onclick="setDailyDir('순매수')">🟢 순매수</button>
+      <button id="daily-sell-btn" class="card-view-btn" onclick="setDailyDir('순매도')">🔴 순매도</button>
+    </div>
     <span class="muted" style="font-size:11px">매 영업일 18:30 갱신</span>
   </div>
   <div id="daily-grid" class="investor-grid"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
@@ -446,10 +450,12 @@ function openModal(code, name) {
           ? (r.exit_count > 0 ? '<span class="badge badge-re">&#128260; 재편입</span>'
                               : '<span class="badge badge-in">&#9650; 편입</span>')
           : '<span class="badge badge-out">&#9660; 이탈</span>';
-        return "<tr><td class='muted' style='font-size:12px;white-space:nowrap'>" + ds + "</td><td>" + badge + "</td><td>" + (r.entry_time||"—") + "</td><td>" + (r.entry_price!=null?r.entry_price.toLocaleString():"—") + "</td><td>" + (r.exit_time||"—") + "</td><td>" + (r.exit_price!=null?r.exit_price.toLocaleString():"—") + "</td><td class='muted'>" + dur + "</td></tr>";
+        var entryCell = (r.entry_time||"—") + (r.reentry_time
+          ? "<br><span class='muted' style='font-size:11px'>&#8635; " + r.reentry_time + "</span>" : "");
+        return "<tr><td class='muted' style='font-size:12px;white-space:nowrap'>" + ds + "</td><td>" + badge + "</td><td>" + entryCell + "</td><td>" + (r.entry_price!=null?r.entry_price.toLocaleString():"—") + "</td><td>" + (r.exit_time||"—") + "</td><td>" + (r.exit_price!=null?r.exit_price.toLocaleString():"—") + "</td><td class='muted'>" + dur + "</td></tr>";
       }).join("");
       document.getElementById("modal-history").innerHTML =
-        "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>날짜</th><th>상태</th><th>편입</th><th>편입가</th><th>이탈</th><th>이탈가</th><th>유지</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+        "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>날짜</th><th>상태</th><th>편입 / &#8635;재편입</th><th>편입가</th><th>이탈</th><th>이탈가</th><th>유지</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
     });
 }
 
@@ -468,7 +474,10 @@ function sortVal(row, key, which) {
     case "entry_time": return t2m(row.entry_time);
     case "exit_time":  return t2m(row.exit_time);
     case "dur":
-      if (which === "active") return row.entry_time ? effNowMin()-t2m(row.entry_time) : null;
+      if (which === "active") {
+        var et = row.reentry_time || row.entry_time;
+        return et ? effNowMin()-t2m(et) : null;
+      }
       return (row.entry_time && row.exit_time) ? t2m(row.exit_time)-t2m(row.entry_time) : null;
     default: return row[key];
   }
@@ -538,10 +547,14 @@ function renderRealtime() {
       var m  = _meta[s.code + '|' + (s.condition_name||'')];
       var reBadge = (m && m.exit_count > 0)
         ? ' <span class="badge badge-re">&#128260; 재편입' + (m.exit_count>1 ? ' '+m.exit_count+'회' : '') + '</span>' : '';
+      // 유지 시간은 현재 편입 구간(재편입 있으면 재편입 시각) 기준
+      var durTime = s.reentry_time || s.entry_time;
+      var entryCell = (s.entry_time||"—") + (s.reentry_time
+        ? "<br><span class='muted' style='font-size:11px'>&#8635; " + s.reentry_time + " 재편입</span>" : "");
       return "<tr><td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
         "<b>" + (s.name||s.code) + "</b>" + reBadge + "<br><span class='muted' style='font-size:11px'>" + s.code + " &nbsp;&middot;&nbsp; " + (s.condition_name||"") + "</span></td>" +
-        "<td style='white-space:nowrap'>" + (s.entry_time||"—") + "</td>" +
-        "<td class='dur-cell muted' data-entry='" + (s.entry_time||"") + "'>" + fmtDur(s.entry_time) + "</td>" +
+        "<td style='white-space:nowrap'>" + entryCell + "</td>" +
+        "<td class='dur-cell muted' data-entry='" + (durTime||"") + "'>" + fmtDur(durTime) + "</td>" +
         "<td style='font-variant-numeric:tabular-nums'>" + ep + "</td></tr>";
     }).join("");
     actEl.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>" +
@@ -686,12 +699,27 @@ function renderDailyDateSel() {
   // 사용자가 직접 고른 경우만 선택 유지 – 새 날짜 데이터가 오면 자동으로 최신 표시
   if(_userPick.daily && dates.indexOf(prev)>=0) sel.value=prev;
 }
+var _dailyDir = "순매수";
+function setDailyDir(dir){
+  _dailyDir = dir;
+  document.getElementById("daily-buy-btn").classList.toggle("active", dir==="순매수");
+  document.getElementById("daily-sell-btn").classList.toggle("active", dir==="순매도");
+  renderDaily();
+}
 function renderDaily() {
   var date=document.getElementById("daily-date-sel").value;
-  var rows=_daily.filter(function(r){return r.date===date;});
-  if(!rows.length){document.getElementById("daily-grid").innerHTML='<div class="empty">데이터 없음</div>';return;}
+  // 마이그레이션 이전 데이터엔 trade_type이 없으므로 순매수로 간주
+  var rows=_daily.filter(function(r){
+    return r.date===date && (r.trade_type||"순매수")===_dailyDir;
+  });
+  var order=["외국인","투신","연기금"];
+  if(!rows.length){
+    var msg=_dailyDir==="순매도"?"순매도 데이터 없음 (이 날짜는 순매수만 수집됨)":"데이터 없음";
+    document.getElementById("daily-grid").innerHTML='<div class="empty">'+msg+'</div>';return;
+  }
   var types=[],seen={};
   rows.forEach(function(r){if(!seen[r.investor_type]){seen[r.investor_type]=true;types.push(r.investor_type);}});
+  types.sort(function(a,b){return order.indexOf(a)-order.indexOf(b);});
   document.getElementById("daily-grid").innerHTML=types.map(function(t,i){
     return makeInvestorCard("daily-card-"+i,t,rows.filter(function(r){return r.investor_type===t;}).slice(0,10));
   }).join("");
