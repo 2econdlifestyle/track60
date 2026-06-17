@@ -264,7 +264,6 @@ header {
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('realtime',this)">&#128225;&nbsp; 실시간 현황</div>
-  <div class="tab" onclick="switchTab('intraday',this)">&#128225;&nbsp; 장중 투자자</div>
   <div class="tab" onclick="switchTab('daily',this)">&#128202;&nbsp; 투자자 TOP10</div>
   <div class="tab" onclick="switchTab('analysis',this)">&#128200;&nbsp; 분석 결과</div>
 </div>
@@ -275,15 +274,6 @@ header {
   <div id="rt-active"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
   <div class="sec-title" style="margin-top:32px">오늘 이탈</div>
   <div id="rt-exited"></div>
-</div>
-
-<div id="panel-intraday" class="panel">
-  <div class="period-selector">
-    <label>기준 시각</label>
-    <select id="intraday-time-sel" onchange="_userPick.intraday=true;renderIntraday()"></select>
-    <span class="muted" style="font-size:11px">장중투자자별매매상위(잠정) [1053] &middot; 10분 간격 &middot; 순매수 금액(백만원) 기준</span>
-  </div>
-  <div id="intraday-grid" class="investor-grid"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
 </div>
 
 <div id="panel-daily" class="panel">
@@ -459,9 +449,9 @@ function openModal(code, name) {
     });
 }
 
-var _active = [], _exited = [], _intraday = [], _daily = [], _analysis = [];
+var _active = [], _exited = [], _daily = [], _analysis = [];
 var _meta = {};   // code|condition_name → bot_entries 행 (재편입 판별용)
-var _userPick = { daily:false, intraday:false, period:false };
+var _userPick = { daily:false, period:false };
 var _rtSubscribed = false;
 var _sort = { active:{key:"entry_time",dir:1}, exited:{key:"exit_time",dir:-1} };
 
@@ -584,54 +574,6 @@ function renderRealtime() {
   }
 }
 
-function loadIntraday() {
-  return db.from("intraday_investor").select("*").eq("date", today8())
-    .order("recorded_at",{ascending:false}).limit(150)
-    .then(function(res) { _intraday = res.data||[]; });
-}
-
-function fmtQty(v) {
-  if (v == null) return '<span class="muted">—</span>';
-  var cls = v >= 0 ? "up" : "down";
-  return '<span class="' + cls + '">' + (v >= 0 ? "+" : "") + v.toLocaleString() + '</span>';
-}
-
-function renderIntradayTimeSel() {
-  var sel = document.getElementById("intraday-time-sel");
-  var prev = sel.value, times = [], seen = {};
-  _intraday.forEach(function(r) { if (!seen[r.recorded_at]) { seen[r.recorded_at]=true; times.push(r.recorded_at); } });
-  sel.innerHTML = times.map(function(t) {
-    var d = new Date(t);
-    var lbl = ("0"+d.getHours()).slice(-2) + ":" + ("0"+d.getMinutes()).slice(-2);
-    return "<option value='" + t + "'>" + lbl + "</option>";
-  }).join("");
-  if (_userPick.intraday && times.indexOf(prev) >= 0) sel.value = prev;
-}
-
-function renderIntraday() {
-  var grid = document.getElementById("intraday-grid");
-  if (!_intraday.length) {
-    grid.innerHTML = '<div class="empty">오늘 장중 투자자 데이터 없음<br><span style="font-size:11px;margin-top:4px;display:block">장중(09:00~15:30) 10분 간격으로 봇이 자동 수집합니다</span></div>';
-    return;
-  }
-  var t = document.getElementById("intraday-time-sel").value;
-  var rows = _intraday.filter(function(r) { return r.recorded_at === t; });
-  var order = ["외국인","투신","연기금"];
-  rows.sort(function(a,b) { return order.indexOf(a.investor_type) - order.indexOf(b.investor_type); });
-  var icons = { "외국인":"&#127757;", "투신":"&#127974;", "연기금":"&#128309;" };
-  grid.innerHTML = rows.map(function(r) {
-    var trs = (r.stocks||[]).map(function(s) {
-      var sn = (s.name||s.code).replace(/'/g,"\\'");
-      return "<tr><td class='rank'>" + s.rank + "</td>" +
-        "<td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
-        (s.name||s.code) + "<br><span class='muted' style='font-size:11px'>" + s.code + "</span></td>" +
-        "<td class='amount'>" + fmtAmount(s.net_buy) + "</td></tr>";
-    }).join("");
-    return "<div class='investor-card'><div class='investor-card-head'><span>" +
-      (icons[r.investor_type]||"") + " " + r.investor_type + " 순매수(잠정)</span></div>" +
-      "<table><tbody>" + trs + "</tbody></table></div>";
-  }).join("") || '<div class="empty">데이터 없음</div>';
-}
 
 var _charts={}, _chartData={};
 function renderBarChart(id, labels, amounts) {
@@ -778,10 +720,9 @@ function renderAnalysis() {
 }
 
 function loadAll() {
-  Promise.allSettled([loadRealtime(),loadIntraday(),loadDaily(),loadAnalysis()]).then(function(results){
-    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","intraday","daily","analysis"][i],r.reason);});
+  Promise.allSettled([loadRealtime(),loadDaily(),loadAnalysis()]).then(function(results){
+    results.forEach(function(r,i){if(r.status==="rejected")console.error(["realtime","daily","analysis"][i],r.reason);});
     renderRealtime();
-    renderIntradayTimeSel(); renderIntraday();
     renderDailyDateSel(); renderDaily();
     renderAnalysisPeriodSel(); onPeriodChange();
     setUpdated();
