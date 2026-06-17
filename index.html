@@ -281,7 +281,7 @@ header {
   <div class="period-selector">
     <label>기준 시각</label>
     <select id="intraday-time-sel" onchange="_userPick.intraday=true;renderIntraday()"></select>
-    <span class="muted" style="font-size:11px">장중투자자별매매상위(잠정) [1053] &middot; 10분 간격 &middot; 수량 기준</span>
+    <span class="muted" style="font-size:11px">장중투자자별매매상위(잠정) [1053] &middot; 10분 간격 &middot; 순매수 금액(백만원) 기준</span>
   </div>
   <div id="intraday-grid" class="investor-grid"><div class="loading"><span class="spinner"></span>불러오는 중...</div></div>
 </div>
@@ -625,7 +625,7 @@ function renderIntraday() {
       return "<tr><td class='rank'>" + s.rank + "</td>" +
         "<td class='stock-link' onclick=\"openModal('" + s.code + "','" + sn + "')\">" +
         (s.name||s.code) + "<br><span class='muted' style='font-size:11px'>" + s.code + "</span></td>" +
-        "<td class='amount'>" + fmtQty(s.net_buy) + "</td></tr>";
+        "<td class='amount'>" + fmtAmount(s.net_buy) + "</td></tr>";
     }).join("");
     return "<div class='investor-card'><div class='investor-card-head'><span>" +
       (icons[r.investor_type]||"") + " " + r.investor_type + " 순매수(잠정)</span></div>" +
